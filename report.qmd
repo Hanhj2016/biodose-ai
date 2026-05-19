@@ -1,0 +1,125 @@
+---
+title: "BioDose AI: Drug Response Analysis Report"
+subtitle: "AI-assisted Drug Response Analysis for Biochemistry Students"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: true
+    code-tools: true
+    number-sections: true
+---
+
+# Overview
+
+BioDose AI is a beginner-friendly project that analyzes drug response data using Python and AI.
+
+The goal is to help a Biochemistry student practice a realistic analysis workflow:
+
+- inspect a dataset
+- validate required fields
+- summarize replicate measurements
+- visualize dose-response behavior
+- draft a cautious interpretation
+
+# Biological Motivation
+
+Drug response experiments help researchers understand how cell viability changes under different drug concentrations.
+
+# Dataset
+
+The first version uses synthetic drug response data.
+
+::: {.callout-warning}
+## Synthetic Dataset
+This dataset is synthetic and is used for learning purposes only. It should not be interpreted as real experimental evidence.
+:::
+
+For teaching data validation, the repository also includes intentionally problematic example files with missing columns, duplicate sample identifiers, and negative concentration values.
+
+# Methods
+
+```{python}
+from src.drug_analysis import (
+    analyze_drug_response,
+    generate_rule_based_figure_caption,
+    generate_rule_based_interpretation,
+)
+from src.plots import create_dose_response_plot
+
+result = analyze_drug_response("data/examples/drug_response_sample.csv")
+summary_df = result["summary_df"]
+warnings = result["warnings"]
+summary_df
+```
+
+# Results
+
+```{python}
+fig = create_dose_response_plot(summary_df)
+fig
+```
+
+## Example Figure Caption
+
+```{python}
+print(generate_rule_based_figure_caption(summary_df))
+```
+
+## Result Cards
+
+```{python}
+result["cards"]
+```
+
+## Data Quality Review
+
+```{python}
+warnings if warnings else ["No major data-quality warnings detected."]
+```
+
+## Validation Teaching Examples
+
+The repository includes additional CSV files that intentionally trigger warnings:
+
+- `data/examples/drug_response_missing_column.csv`
+- `data/examples/drug_response_duplicate_samples.csv`
+- `data/examples/drug_response_negative_concentration.csv`
+
+These are useful for demonstrating how the validation layer behaves before using real lab exports.
+
+# AI-assisted Interpretation
+
+The AI explanation should be treated as a draft and must be verified manually.
+
+For a fully offline report, the project can also generate a local fallback interpretation:
+
+```{python}
+print(generate_rule_based_interpretation(summary_df, warnings))
+```
+
+This same workflow can also generate a short figure caption for the plot, which is useful when preparing a report or presentation slide.
+
+# Verification Checklist
+
+- Check whether the dataset is synthetic or real.
+- Check whether all required columns are present.
+- Check whether replicate count is sufficient.
+- Check whether the plot uses the correct concentration units.
+- Check whether the interpretation overstates conclusions.
+
+# Limitations
+
+- Synthetic data only.
+- Small number of replicates.
+- No IC50 fitting in the first version.
+- No biological validation.
+- AI-generated text should not replace manual scientific review.
+
+# What I Learned
+
+- How to load CSV data with pandas.
+- How to calculate grouped summary statistics.
+- How to create an interactive dose-response chart.
+- How to use AI cautiously for scientific explanation.
+- How to recognize and explain common data-quality problems before interpretation.

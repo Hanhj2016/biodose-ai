@@ -1,0 +1,5 @@
+sample_id,drug_name,concentration_uM,replicate,cell_viability_percent
+S001,DrugA,0,1,100
+S001,DrugA,0,2,99
+S003,DrugA,1,1,65
+S004,DrugB,1,1,74

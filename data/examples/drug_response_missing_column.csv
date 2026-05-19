@@ -1,0 +1,5 @@
+sample_id,drug_name,concentration_uM,replicate
+S001,DrugA,0,1
+S002,DrugA,0,2
+S003,DrugA,1,1
+S004,DrugB,1,1

@@ -1,0 +1,12 @@
+pandas
+numpy
+matplotlib
+plotly
+scipy
+statsmodels
+jupyter
+gradio
+openai
+python-dotenv
+pytest
+tabulate
