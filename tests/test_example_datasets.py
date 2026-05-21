@@ -31,3 +31,19 @@ def test_negative_concentration_example_triggers_negative_concentration_warning(
     warnings = validate_drug_response_df(df)
 
     assert "Negative concentration values detected." in warnings
+
+
+def test_missing_replicate_scenario_triggers_low_replicate_warning():
+    df = pd.read_csv(EXAMPLES_DIR / "drug_response_missing_replicate.csv")
+
+    warnings = validate_drug_response_df(df)
+
+    assert "Some drug/concentration groups have fewer than 2 replicates." in warnings
+
+
+def test_weak_response_scenario_is_valid_for_cautious_comparison():
+    df = pd.read_csv(EXAMPLES_DIR / "drug_response_weak_response.csv")
+
+    warnings = validate_drug_response_df(df)
+
+    assert warnings == []

@@ -91,6 +91,13 @@ These are useful for demonstrating how the validation layer behaves before using
 # AI-assisted Interpretation
 
 The AI explanation should be treated as a draft and must be verified manually.
+The current workflow can support academic-style writing outputs such as:
+
+- a Results paragraph draft
+- a Discussion paragraph draft
+- a limitations list
+- next experiment suggestions
+- challenge questions
 
 For a fully offline report, the project can also generate a local fallback interpretation:
 
@@ -112,7 +119,7 @@ This same workflow can also generate a short figure caption for the plot, which 
 
 - Synthetic data only.
 - Small number of replicates.
-- No IC50 fitting in the first version.
+- IC50 fitting is available, but any fitted value should still be reviewed manually for data quality and model suitability.
 - No biological validation.
 - AI-generated text should not replace manual scientific review.
 

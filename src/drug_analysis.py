@@ -6,6 +6,14 @@ from scipy.optimize import OptimizeWarning, curve_fit
 from src.validation import validate_drug_response_df
 from src.llm_helper import call_llm
 
+EXPLANATION_LEVEL_OPTIONS = [
+    "Simple",
+    "Undergraduate Biochemistry",
+    "Research Assistant",
+    "Lab Report Style",
+    "Poster Caption",
+]
+
 
 def load_drug_response_csv(file_path) -> pd.DataFrame:
     return pd.read_csv(file_path)
@@ -185,10 +193,51 @@ def build_ic50_markdown(fit_df: pd.DataFrame, fit_warnings: list[str]) -> str:
     return md
 
 
-def generate_rule_based_interpretation(summary_df: pd.DataFrame, warnings: list[str]) -> str:
+def _default_next_experiment_suggestions() -> list[str]:
+    return [
+        "Add more biological replicates to improve confidence in the observed trend.",
+        "Confirm that vehicle, untreated, and assay-specific controls behave as expected.",
+        "Test intermediate concentrations around the apparent transition region to refine the response curve.",
+    ]
+
+
+def _default_challenge_questions() -> list[str]:
+    return [
+        "What is the independent variable in this experiment?",
+        "What is the dependent variable being measured?",
+        "Why are biological or technical replicates important for interpretation?",
+        "What does the error bar represent in this plot?",
+        "Why should we avoid claiming a drug is effective based only on this dataset?",
+        "What additional control or follow-up experiment would strengthen the conclusion?",
+    ]
+
+
+def _normalize_explanation_level(explanation_level: str | None) -> str:
+    if explanation_level in EXPLANATION_LEVEL_OPTIONS:
+        return explanation_level
+    return "Undergraduate Biochemistry"
+
+
+def _explanation_level_instruction(explanation_level: str) -> str:
+    instructions = {
+        "Simple": "Use short sentences, minimal jargon, and student-friendly wording.",
+        "Undergraduate Biochemistry": "Use clear undergraduate biochemistry language with moderate scientific vocabulary.",
+        "Research Assistant": "Use more technical wording appropriate for a new research assistant while staying cautious.",
+        "Lab Report Style": "Write in a concise, formal style suitable for a lab report draft.",
+        "Poster Caption": "Keep the wording compact, presentation-friendly, and suitable for a poster or slide handout.",
+    }
+    return instructions[_normalize_explanation_level(explanation_level)]
+
+
+def generate_rule_based_interpretation(
+    summary_df: pd.DataFrame,
+    warnings: list[str],
+    explanation_level: str | None = None,
+) -> str:
     if summary_df.empty:
         return "No interpretation is available because the summary table is empty."
 
+    normalized_level = _normalize_explanation_level(explanation_level)
     lines = ["## Plain-English Summary", ""]
     drugs = list(summary_df["drug_name"].dropna().unique())
 
@@ -233,9 +282,69 @@ def generate_rule_based_interpretation(summary_df: pd.DataFrame, warnings: list[
     lines.extend(
         [
             "",
+            "## Results Paragraph Draft",
+            "",
+        ]
+    )
+
+    if len(drugs) >= 2:
+        final_rows = (
+            summary_df.sort_values(["drug_name", "concentration_uM"])
+            .groupby("drug_name", as_index=False)
+            .tail(1)
+            .sort_values("mean_viability")
+        )
+        strongest = final_rows.iloc[0]
+        weakest = final_rows.iloc[-1]
+        lines.append(
+            f"In this dataset, mean cell viability decreases across the tested concentration range, with {strongest['drug_name']} showing the lowest viability at the highest tested concentration compared with {weakest['drug_name']}. These summary-level results are consistent with a stronger apparent dose-response pattern for {strongest['drug_name']}, although the findings still require manual review of assay quality, controls, and replicate behavior."
+        )
+    else:
+        drug_name = drugs[0] if drugs else "the drug"
+        ordered = summary_df.sort_values("concentration_uM")
+        lines.append(
+            f"In this dataset, {drug_name} shows a change in mean cell viability across the tested concentration range. The summary-level pattern is consistent with an apparent dose-response trend, but the result should be treated as a preliminary observation until controls, replicate quality, and assay conditions are checked manually."
+        )
+
+    if normalized_level == "Simple":
+        lines.extend(
+            [
+                "",
+                "Use this as a simple study note: describe the pattern first, then mention at least one limitation before making any claim.",
+            ]
+        )
+    elif normalized_level == "Research Assistant":
+        lines.extend(
+            [
+                "",
+                "Use this as a technical practice draft: separate observations from interpretation and keep assay limitations visible.",
+            ]
+        )
+    elif normalized_level == "Lab Report Style":
+        lines.extend(
+            [
+                "",
+                "Use this as a formal draft that can be revised into a Results or Discussion section.",
+            ]
+        )
+    elif normalized_level == "Poster Caption":
+        lines.extend(
+            [
+                "",
+                "Use this as compact presentation support and trim wording further if space is limited.",
+            ]
+        )
+
+    lines.extend(
+        [
+            "",
             "## Possible Biological Interpretation",
             "",
             "The pattern is consistent with a dose-dependent response in this assay, but it should be treated as an initial observation rather than a biological conclusion.",
+            "",
+            "## Discussion Paragraph Draft",
+            "",
+            "A cautious discussion should note that the observed trend may reflect a drug-associated response, while also emphasizing that summary-level patterns alone do not establish mechanism, selectivity, or reproducibility. Interpretation should stay tied to the assay context, replicate quality, and the need for proper controls and follow-up validation.",
             "",
             "## Limitations",
             "",
@@ -257,13 +366,30 @@ def generate_rule_based_interpretation(summary_df: pd.DataFrame, warnings: list[
     lines.extend(
         [
             "",
+            "## Next Experiment Suggestions",
+            "",
+        ]
+    )
+
+    for suggestion in _default_next_experiment_suggestions():
+        lines.append(f"- {suggestion}")
+
+    lines.extend(
+        [
+            "",
             "## What to Verify Manually",
             "",
             "- Confirm that concentration units and viability units are correct.",
             "- Check whether the dataset is synthetic or experimental.",
             "- Review replicate quality, outliers, and assay controls before reporting conclusions.",
+            "",
+            "## Challenge Questions",
+            "",
         ]
     )
+
+    for question in _default_challenge_questions():
+        lines.append(f"- {question}")
 
     return "\n".join(lines)
 
@@ -307,6 +433,9 @@ def analyze_drug_response(file_path) -> dict:
         return {
             "df": df,
             "summary_df": pd.DataFrame(),
+            "fit_df": pd.DataFrame(),
+            "fit_warnings": [],
+            "fit_curve_df": pd.DataFrame(),
             "warnings": warnings,
             "cards": {},
             "summary_markdown": "",
@@ -330,7 +459,8 @@ def analyze_drug_response(file_path) -> dict:
     }
 
 
-def generate_ai_drug_response_explanation(summary_markdown: str) -> str:
+def generate_ai_drug_response_explanation(summary_markdown: str, explanation_level: str | None = None) -> str:
+    normalized_level = _normalize_explanation_level(explanation_level)
     system_prompt = '''
 You are an AI assistant helping a third-year undergraduate Biochemistry student.
 Explain drug response results clearly and cautiously.
@@ -346,13 +476,203 @@ The following summary statistics come from a drug response / cell viability data
 
 {summary_markdown}
 
+Explanation level: {normalized_level}
+Style instruction: {_explanation_level_instruction(normalized_level)}
+
 Please write:
 
 ## Plain-English Summary
 ## Key Observations
+## Results Paragraph Draft
 ## Possible Biological Interpretation
+## Discussion Paragraph Draft
 ## Limitations
+## Next Experiment Suggestions
 ## What to Verify Manually
+## Challenge Questions
+'''
+
+    return call_llm(system_prompt, user_prompt)
+
+
+def generate_rule_based_interpretation_feedback(
+    student_interpretation: str,
+    summary_df: pd.DataFrame,
+    warnings: list[str],
+) -> str:
+    interpretation_text = student_interpretation.strip()
+    if not interpretation_text:
+        return "Please enter your interpretation first."
+
+    lower_text = interpretation_text.lower()
+    strengths: list[str] = []
+    suggestions: list[str] = []
+
+    final_rows = (
+        summary_df.sort_values(["drug_name", "concentration_uM"])
+        .groupby("drug_name", as_index=False)
+        .tail(1)
+        .sort_values("mean_viability")
+        if not summary_df.empty
+        else pd.DataFrame()
+    )
+
+    if any(term in lower_text for term in ["dose-dependent", "dose dependent", "concentration-dependent", "concentration dependent"]):
+        strengths.append("You identified a possible dose-response pattern instead of describing the data as random.")
+    else:
+        suggestions.append("Mention whether the pattern appears dose-dependent across the tested concentrations.")
+
+    if any(term in lower_text for term in ["limitation", "caution", "however", "preliminary"]):
+        strengths.append("You used cautious language rather than presenting the result as final proof.")
+    else:
+        suggestions.append("Add a caution statement or limitation so the interpretation stays scientifically responsible.")
+
+    if "synthetic" in lower_text:
+        strengths.append("You acknowledged that the built-in teaching scenarios are synthetic when that is relevant.")
+    else:
+        suggestions.append("State whether the dataset is synthetic or user-supplied so the reader understands the evidence context.")
+
+    if any(term in lower_text for term in ["replicate", "replicates", "control", "controls", "assay"]):
+        strengths.append("You connected the interpretation to experimental design details such as controls, replicates, or assay context.")
+    else:
+        suggestions.append("Refer to controls, replicates, or assay context to show what still needs verification.")
+
+    if any(term in lower_text for term in ["effective", "cure", "safe", "proves", "proven"]):
+        suggestions.append("Avoid strong words like 'effective', 'safe', or 'proves' unless the evidence really supports them.")
+    else:
+        strengths.append("You avoided obviously over-claiming language.")
+
+    if warnings:
+        suggestions.append("Incorporate the data-quality warnings into your interpretation before treating the result as strong evidence.")
+
+    if not final_rows.empty:
+        lead_drug = str(final_rows.iloc[0]["drug_name"])
+        if lead_drug.lower() in lower_text:
+            strengths.append(f"You referenced the apparent lead compound ({lead_drug}) instead of staying too vague.")
+        else:
+            suggestions.append(f"Name the apparent lead compound ({lead_drug}) if you want the interpretation to feel more specific.")
+
+    strengths = strengths[:4]
+    suggestions = suggestions[:5]
+
+    lines = ["## Strengths", ""]
+    if strengths:
+        lines.extend(f"- {item}" for item in strengths)
+    else:
+        lines.append("- You made a start by drafting an interpretation that can now be revised more scientifically.")
+
+    lines.extend(["", "## Suggestions", ""])
+    if suggestions:
+        lines.extend(f"- {item}" for item in suggestions)
+    else:
+        lines.append("- Your draft already covers the main teaching points; the next step is tightening wording for clarity.")
+
+    return "\n".join(lines)
+
+
+def generate_ai_interpretation_feedback(
+    summary_markdown: str,
+    student_interpretation: str,
+    explanation_level: str | None = None,
+) -> str:
+    normalized_level = _normalize_explanation_level(explanation_level)
+    system_prompt = '''
+You are an AI assistant helping a third-year undergraduate Biochemistry student improve their own written interpretation.
+Give feedback that is supportive, specific, and scientifically cautious.
+Do not rewrite the whole interpretation unless needed.
+Focus on strengths first, then clear suggestions.
+Do not give clinical or medical advice.
+'''
+
+    user_prompt = f'''
+The following summary statistics come from a drug response / cell viability dataset:
+
+{summary_markdown}
+
+The student wrote this interpretation:
+
+{student_interpretation}
+
+Explanation level: {normalized_level}
+Style instruction: {_explanation_level_instruction(normalized_level)}
+
+Please respond with:
+
+## Strengths
+## Suggestions
+
+Keep the feedback encouraging and specific.
+'''
+
+    return call_llm(system_prompt, user_prompt)
+
+
+def generate_rule_based_lab_assistant_message(
+    summary_df: pd.DataFrame,
+    warnings: list[str],
+    is_synthetic: bool = True,
+) -> str:
+    if summary_df.empty:
+        return "BioDose Assistant says: Run the Python analysis first so I can comment on the current dataset."
+
+    final_rows = (
+        summary_df.sort_values(["drug_name", "concentration_uM"])
+        .groupby("drug_name", as_index=False)
+        .tail(1)
+        .sort_values("mean_viability")
+    )
+
+    if final_rows.empty:
+        return "BioDose Assistant says: I could not identify a clear end-point comparison from the current summary table yet."
+
+    lead_row = final_rows.iloc[0]
+    lead_drug = str(lead_row["drug_name"])
+    lead_viability = float(lead_row["mean_viability"])
+    concentration = lead_row["concentration_uM"]
+
+    caution = (
+        "This built-in scenario is synthetic, so treat the pattern as practice evidence only."
+        if is_synthetic
+        else "If this is a real dataset, confirm controls, units, and assay conditions before using this wording in a report."
+    )
+
+    if warnings:
+        review_note = "Data-quality review is still important because the current dataset triggered one or more warnings."
+    else:
+        review_note = "The dataset passed the main automatic checks, but manual review is still important before drawing stronger conclusions."
+
+    return (
+        f"BioDose Assistant says: {lead_drug} appears to show the strongest reduction in viability at the highest tested concentration "
+        f"({lead_viability:.1f}% at {concentration} uM). {caution} {review_note}"
+    )
+
+
+def generate_ai_lab_assistant_message(
+    summary_markdown: str,
+    is_synthetic: bool = True,
+) -> str:
+    system_prompt = '''
+You are BioDose Assistant, a friendly and professional scientific helper for a third-year undergraduate Biochemistry student.
+Write one short paragraph.
+Keep the tone calm, encouraging, and scientifically responsible.
+Do not sound childish.
+Do not give clinical or medical advice.
+'''
+
+    user_prompt = f'''
+The following summary statistics come from a drug response / cell viability dataset:
+
+{summary_markdown}
+
+Dataset context: {"Synthetic teaching scenario" if is_synthetic else "User-supplied dataset"}
+
+Please write a short assistant message starting with:
+BioDose Assistant says:
+
+The message should:
+- mention the most important observed pattern
+- include one caution about interpretation
+- suggest one thing to verify manually
 '''
 
     return call_llm(system_prompt, user_prompt)

@@ -23,6 +23,49 @@ def save_summary_csv(summary_df: pd.DataFrame, output_dir: str = "outputs/summar
     return str(output_path)
 
 
+def _slugify_label(label: str) -> str:
+    safe = label.lower().replace("-", " ").replace("/", " ")
+    return "_".join(part for part in safe.split() if part)
+
+
+def save_markdown_section(title: str, content: str, output_dir: str = "outputs/academic") -> str | None:
+    if not content.strip():
+        return None
+
+    output_path = _build_timestamped_path(f"biodose_{_slugify_label(title)}", "md", output_dir)
+    output_path.write_text(f"## {title}\n\n{content.strip()}\n", encoding="utf-8")
+    return str(output_path)
+
+
+def save_academic_sections_bundle(
+    sections: dict[str, str],
+    output_dir: str = "outputs/academic",
+) -> str | None:
+    populated_sections = {
+        title: content.strip()
+        for title, content in sections.items()
+        if content and content.strip()
+    }
+    if not populated_sections:
+        return None
+
+    bundle_dir = _build_timestamped_path("biodose_academic_support", "dir", output_dir)
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+
+    for title, content in populated_sections.items():
+        filename = f"{_slugify_label(title)}.md"
+        (bundle_dir / filename).write_text(f"## {title}\n\n{content}\n", encoding="utf-8")
+
+    zip_root = Path(output_dir)
+    zip_root.mkdir(parents=True, exist_ok=True)
+    archive_path = zip_root / f"{bundle_dir.stem}.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for file_path in bundle_dir.iterdir():
+            archive.write(file_path, arcname=file_path.name)
+
+    return str(archive_path)
+
+
 def save_report_bundle(
     summary_markdown: str,
     summary_df: pd.DataFrame,

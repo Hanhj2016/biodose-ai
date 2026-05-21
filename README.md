@@ -73,8 +73,8 @@ Gradio will print a local URL in the terminal. Open that URL in your browser.
 
 ## How To Use The Application
 
-1. Choose an assay type from the dropdown, such as `MTT`, `CellTiter-Glo`, or `Apoptosis`.
-2. Either click `Use Sample Dataset` or upload your own CSV file.
+1. Choose a built-in scenario and assay type from the dropdowns.
+2. Either click `Use Selected Scenario` or upload your own CSV file.
 3. Click `Analyze with Python`.
 4. Review the outputs in each tab.
 
@@ -83,7 +83,15 @@ Gradio will print a local URL in the terminal. Open that URL in your browser.
 - `Data Preview`: shows the raw uploaded data table
 - `Summary`: shows result cards, dataset context, assay guidance, validation warnings, IC50 fit warnings, grouped statistics, and IC50 fit table
 - `Dose-Response Plot`: shows the interactive Plotly curve and fitted IC50 overlays when available
-- `AI Explanation`: generates an interpretation draft and figure caption
+- `AI Explanation`: generates an interpretation draft, results/discussion writing support, challenge questions, and figure caption
+- `AI Explanation`: includes an `Explanation Level` selector for `Simple`, `Undergraduate Biochemistry`, `Research Assistant`, `Lab Report Style`, or `Poster Caption`
+- `Academic Support`: breaks out the plain-English summary, results paragraph, discussion draft, limitations, next-step suggestions, verification checklist, and challenge questions into reusable sections
+- `Academic Support`: lets you download one academic section at a time or export a full academic-support bundle
+- `Mission Mode`: reframes the run as a compound-screening challenge with a quality score, candidate ranking, follow-up checks, and achievement badges
+- `Lab Notebook Mode`: assembles a structured notebook-style entry with question, method, observation, interpretation, limitations, next step, and a downloadable markdown record
+- `Score My Interpretation`: lets you draft your own interpretation first and then get strengths-and-suggestions feedback with a downloadable markdown review
+- `AI Lab Assistant`: shows a short professional assistant note after analysis and can refresh it through the AI layer when available
+- `Mini Scientific Poster`: assembles a one-page poster-style markdown draft with background, method, key observation, limitations, next step, and what-I-learned sections
 - `Summary Markdown`: shows the export-ready markdown summary
 - `Templates`: lets you download standardized assay template CSV files
 - `Export`: lets you download markdown, summary CSV, and the report-package ZIP
@@ -101,6 +109,14 @@ Your dataset should contain these required columns:
 The easiest starter file is:
 
 - `data/examples/drug_response_sample.csv`
+
+### Built-in Scenario Datasets
+
+- `Clear Dose-Response`: clean synthetic comparison for baseline interpretation
+- `Weak Response`: teaches cautious wording when changes are small
+- `Noisy Assay`: emphasizes replicate variability and uncertainty
+- `Missing Replicate`: highlights data-quality review when a group is incomplete
+- `Similar Effect`: shows how close compound performance should be ranked carefully
 
 ### Example Validation Files
 
@@ -135,6 +151,7 @@ pytest
 - Display a log-scale Plotly dose-response chart
 - Fit per-drug IC50 curves and surface fit-quality warnings
 - Generate a cautious AI explanation when an OpenAI API key is configured
+- Generate academic-support writing blocks such as a Results paragraph draft, discussion draft, next experiment suggestions, and challenge questions
 - Generate a short figure caption for the dose-response plot
 - Fall back to a local rule-based interpretation if AI is unavailable
 - Show dataset-context guidance for sample versus user-uploaded files
@@ -148,6 +165,7 @@ pytest
 - A grouped summary table with mean, standard deviation, standard error, and replicate counts
 - A per-drug IC50 table with fit-quality review warnings
 - A cautious interpretation draft for a results section
+- Academic support text for lab-report writing and study review
 - A figure caption draft for reports or presentation slides
 - Markdown, CSV, and zipped report-bundle exports for downstream reporting
 
@@ -183,11 +201,12 @@ Each template includes the required BioDose AI analysis columns plus optional me
 Typical outputs from the current pipeline include:
 
 - Interpretation summary: `DrugA` appears to reduce cell viability more strongly than `DrugB` at the highest tested concentration, while still requiring cautious review.
+- Academic support output: a Results paragraph draft, discussion framing, next-step suggestions, and challenge questions can be generated from the same summary.
 - Figure caption: the dose-response plot reports mean viability across concentrations, highlights the strongest observed response, and states that error bars reflect SEM.
 - Data-quality review: warnings call out missing columns, duplicate identifiers, or suspicious values before a result is interpreted.
 
 ## Notes
 
 - Use `docs/03_BioDose_AI_Step_by_Step_Development_Guide.md` to continue development.
-- See [TODO.md](/home/scott/workspace/drug_response_analyzer/TODO.md) for remaining real-world enhancements.
+- See [TODO.md](/home/scott/workspace/biodose-ai/TODO.md) for remaining real-world enhancements.
 - Do not commit `.env` to GitHub.
